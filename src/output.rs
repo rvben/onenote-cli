@@ -50,6 +50,21 @@ pub fn render(value: &Value, color: bool) -> String {
             clean(s)
         }
     };
+    if value["dry_run"] == true {
+        return format!(
+            "{}\nTarget: {}\n{}\n{}\n\nNo desktop connection or write was made.\n",
+            title(&format!(
+                "Preview · pages {}",
+                value["operation"].as_str().unwrap_or("write")
+            )),
+            clean(value["target"].as_str().unwrap_or("")),
+            value["title"]
+                .as_str()
+                .map(|s| format!("Title: {}\n", clean(s)))
+                .unwrap_or_default(),
+            clean(value["text"].as_str().unwrap_or(""))
+        );
+    }
     if let Some(items) = value["items"].as_array() {
         let mut text = format!(
             "{}\n",
@@ -91,6 +106,9 @@ pub fn render(value: &Value, color: bool) -> String {
             clean(value["id"].as_str().unwrap_or("")),
             clean(markdown)
         );
+        if value["verified"] == true {
+            text.push_str("\nWrite verified in OneNote desktop.\n");
+        }
         if value["has_images"] == true || value["has_attachments"] == true {
             text.push_str("\nThis page also contains images or attachments; these are not included in the text.\n");
         }
@@ -128,7 +146,11 @@ pub fn print(value: &Value, format: Format, no_color: bool) -> Result<(), Error>
 }
 pub fn error(error: &Error, format: Format) {
     let text = if structured(format) {
-        serde_json::json!({"error":{"kind":error.kind,"message":error.message,"exit_code":error.code(),"retryable":false}}).to_string()
+        let mut value = serde_json::json!({"error":{"kind":error.kind,"message":error.message,"exit_code":error.code(),"retryable":false}});
+        if let Some(id) = &error.page_id {
+            value["error"]["page_id"] = Value::String(id.clone());
+        }
+        value.to_string()
     } else {
         format!("error: {}", clean(&error.message))
     };

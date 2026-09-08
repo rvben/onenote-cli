@@ -4,6 +4,7 @@ use std::fmt;
 pub struct Error {
     pub kind: &'static str,
     pub message: String,
+    pub page_id: Option<String>,
 }
 
 pub const CONTRACTS: &[(&str, i32, &str)] = &[
@@ -19,6 +20,16 @@ pub const CONTRACTS: &[(&str, i32, &str)] = &[
         5,
         "OneNote or its PowerShell bridge failed",
     ),
+    (
+        "conflict",
+        6,
+        "Page changed before the append; review before retrying",
+    ),
+    (
+        "write_uncertain",
+        7,
+        "Write outcome is uncertain; inspect OneNote before retrying",
+    ),
     ("unexpected_error", 1, "Local input/output failure"),
 ];
 
@@ -27,7 +38,12 @@ impl Error {
         Self {
             kind,
             message: message.into(),
+            page_id: None,
         }
+    }
+    pub fn with_page(mut self, id: &str) -> Self {
+        self.page_id = Some(id.to_owned());
+        self
     }
     pub fn invalid(message: impl Into<String>) -> Self {
         Self::new("invalid_input", message)

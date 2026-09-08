@@ -3,7 +3,7 @@ use onenote_cli::{
     cli::{Cli, Command, Format, Notebooks, PageArgs, Pages, Sections},
     desktop,
     error::Error,
-    model, output, schema,
+    model, output, schema, write,
 };
 use serde_json::{Value, json};
 
@@ -90,6 +90,17 @@ async fn dispatch(cli: Cli) -> Result<(), Error> {
             let content = desktop::run(json!({"operation":"read","id":id})).await?;
             model::read(&content, &id, xml)?
         }
+        Some(Command::Pages {
+            command:
+                Pages::Create {
+                    section,
+                    title,
+                    content,
+                },
+        }) => write_page("create", &section, Some(&title), content).await?,
+        Some(Command::Pages {
+            command: Pages::Append { id, content },
+        }) => write_page("append", &id, None, content).await?,
         Some(Command::Search { query, scope, page }) => {
             list("search", scope.as_deref(), Some(&query), "Page", page).await?
         }
@@ -133,4 +144,51 @@ async fn dispatch(cli: Cli) -> Result<(), Error> {
         }
     };
     output::print(&value, cli.output, cli.no_color)
+}
+
+async fn write_page(
+    operation: &str,
+    target: &str,
+    title: Option<&str>,
+    content: onenote_cli::cli::ContentArgs,
+) -> Result<Value, Error> {
+    let mut request = write::prepare(operation, target, title, &content)?;
+    if content.dry_run {
+        request["dry_run"] = json!(true);
+        return Ok(request);
+    }
+    let result = desktop::write(request).await?;
+    let id = result["id"].as_str().ok_or_else(|| {
+        Error::new(
+            "write_uncertain",
+            "Write response has no page ID. Inspect OneNote before retrying.",
+        )
+    })?;
+    let xml = result["xml"].as_str().ok_or_else(|| {
+        Error::new(
+            "write_uncertain",
+            format!("Write response has no page content. Inspect page {id} before retrying."),
+        )
+        .with_page(id)
+    })?;
+    let mut page = model::read(xml, id, false).map_err(|e| {
+        Error::new(
+            "write_uncertain",
+            format!(
+                "Cannot verify page {id}: {}. Inspect it before retrying.",
+                e.message
+            ),
+        )
+        .with_page(id)
+    })?;
+    if result["verified"] != true {
+        return Err(Error::new(
+            "write_uncertain",
+            format!("Write was not verified. Inspect page {id} before retrying."),
+        )
+        .with_page(id));
+    }
+    page["operation"] = json!(operation);
+    page["verified"] = json!(true);
+    Ok(page)
 }

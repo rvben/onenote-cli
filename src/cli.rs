@@ -10,7 +10,7 @@ pub enum Format {
 #[derive(Debug, Parser)]
 #[command(name = "onenote", version, about = "Your OneNote notebooks, from the terminal",
     styles = styles(),
-    after_help = "Start with your Windows desktop session:\n  onenote doctor\n  onenote notebooks list\n  onenote sections list --notebook ID\n  onenote pages list --section ID\n  onenote search 'quarterly review'\n  onenote pages read ID\n\nFor automation:\n  onenote notebooks list -o json\n  onenote schema\n\nRequires Windows OneNote desktop; WSL can use Windows PowerShell interop.\nNo app registration or separate sign-in. All commands are read-only.")]
+    after_help = "Start with your Windows desktop session:\n  onenote doctor\n  onenote notebooks list\n  onenote sections list --notebook ID\n  onenote pages list --section ID\n  onenote search 'quarterly review'\n  onenote pages read ID\n  onenote pages create --section ID --title Notes --file notes.txt --dry-run\n  onenote pages append ID --text 'Follow up tomorrow'\n\nFor automation:\n  onenote notebooks list -o json\n  onenote schema\n\nRequires Windows OneNote desktop; WSL can use Windows PowerShell interop.\nNo app registration or separate sign-in. Writes use explicit pages create/append commands; preview with --dry-run.")]
 pub struct Cli {
     /// Auto: text in a terminal, JSON when piped
     #[arg(short = 'o', long, global = true, value_enum, default_value = "auto")]
@@ -34,7 +34,7 @@ pub enum Command {
         #[command(subcommand)]
         command: Sections,
     },
-    /// List pages and read their content
+    /// Read, create, and append to pages
     Pages {
         #[command(subcommand)]
         command: Pages,
@@ -88,6 +88,22 @@ pub enum Pages {
         #[command(flatten)]
         page: PageArgs,
     },
+    /// Create a page with a title and plain-text content
+    Create {
+        #[arg(long, value_parser = id)]
+        section: String,
+        #[arg(long)]
+        title: String,
+        #[command(flatten)]
+        content: ContentArgs,
+    },
+    /// Add a new text block below existing page content
+    Append {
+        #[arg(value_parser = id)]
+        id: String,
+        #[command(flatten)]
+        content: ContentArgs,
+    },
     Read {
         /// Page ID returned by pages list or search
         #[arg(value_parser = id)]
@@ -96,6 +112,19 @@ pub enum Pages {
         #[arg(long)]
         xml: bool,
     },
+}
+#[derive(Debug, Args)]
+#[group(skip)]
+pub struct ContentArgs {
+    /// Plain text (not Markdown or HTML)
+    #[arg(long, required_unless_present = "file", conflicts_with = "file")]
+    pub text: Option<String>,
+    /// Read UTF-8 text from a file; - reads piped stdin (maximum 1 MiB)
+    #[arg(long)]
+    pub file: Option<std::path::PathBuf>,
+    /// Preview the request without connecting to OneNote or writing anything
+    #[arg(long)]
+    pub dry_run: bool,
 }
 #[derive(Debug, Args)]
 pub struct PageArgs {

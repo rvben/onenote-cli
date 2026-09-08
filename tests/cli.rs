@@ -208,3 +208,87 @@ fn offline_commands_work_without_desktop_and_bad_fields_fail_before_launch() {
         .assert()
         .code(4);
 }
+
+#[test]
+fn write_previews_validate_content_without_a_desktop_connection() {
+    for operation in ["create", "append"] {
+        let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("onenote"));
+        cmd.args(["pages", operation]);
+        if operation == "create" {
+            cmd.args(["--section", "section", "--title", "Notes <&> 日本語"]);
+        } else {
+            cmd.arg("page");
+        }
+        let result = cmd
+            .args([
+                "--text",
+                "Literal <script> & $(exit) ]]> 日本語",
+                "--dry-run",
+                "-ojson",
+            ])
+            .assert()
+            .success();
+        let value: Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+        assert_eq!(value["dry_run"], true);
+        assert_eq!(value["operation"], operation);
+        assert!(value["text"].as_str().unwrap().contains("<script>"));
+    }
+    let result = Command::new(assert_cmd::cargo::cargo_bin!("onenote"))
+        .args(["pages", "append", "page", "--file", "-", "--dry-run"])
+        .write_stdin("\u{feff}Line one\r\n日本語\rEnd")
+        .assert()
+        .success();
+    let value: Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    assert_eq!(value["text"], "Line one\n日本語\nEnd");
+    for args in [
+        vec!["pages", "append", "page", "--dry-run"],
+        vec!["pages", "append", "page", "--text", "", "--dry-run"],
+        vec![
+            "pages",
+            "append",
+            "page",
+            "--text",
+            "hi",
+            "--file",
+            "-",
+            "--dry-run",
+        ],
+        vec![
+            "pages",
+            "create",
+            "--section",
+            "section",
+            "--title",
+            "\n",
+            "--text",
+            "hi",
+            "--dry-run",
+        ],
+    ] {
+        let result = Command::new(assert_cmd::cargo::cargo_bin!("onenote"))
+            .args(args)
+            .assert()
+            .code(2);
+        assert!(result.get_output().stdout.is_empty());
+    }
+    for bytes in [vec![0xff], vec![b'x'; onenote_cli::write::MAX_TEXT + 1]] {
+        Command::new(assert_cmd::cargo::cargo_bin!("onenote"))
+            .args(["pages", "append", "page", "--file", "-", "--dry-run"])
+            .write_stdin(bytes)
+            .assert()
+            .code(2);
+    }
+    for text in ["\u{ffff}", "\0", "\x1b"] {
+        assert!(onenote_cli::write::validate(text, false).is_err());
+    }
+    let contract = schema::generate(None);
+    for name in ["pages create", "pages append"] {
+        let command = contract["commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == name)
+            .unwrap();
+        assert_eq!(command["effects"], "non_idempotent");
+    }
+}

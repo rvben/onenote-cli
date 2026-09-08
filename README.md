@@ -1,11 +1,11 @@
 # onenote-cli
 
-Read your OneNote notebooks from the terminal through the **Windows desktop
+Use your OneNote notebooks from the terminal through the **Windows desktop
 application**, using its existing signed-in session. No Graph connection, Entra
 app registration, or separate OAuth consent is required by this backend.
 
-This first version is read-only: notebook and section discovery, page lists,
-full-text search, and page reading. It has readable terminal output, JSON when
+Discover notebooks and sections, list and search pages, read page content, and
+create or append plain-text notes. It has readable terminal output, JSON when
 piped, bounded collections, shell completions, and an offline CLI Spec contract.
 
 ## Requirements
@@ -68,17 +68,52 @@ not depend on the search index.
 force readable text or `-o json` for automation. `--no-color` and `NO_COLOR`
 disable color. Errors go to stderr as structured JSON in JSON mode, leaving
 stdout empty. Exit codes: 1 local failure, 2 invalid input/unsupported platform,
-4 resource not found, 5 desktop bridge failure. OneNote COM failures, including
+4 resource not found, 5 desktop bridge failure, 6 write conflict, 7 uncertain write. OneNote COM failures, including
 inaccessible IDs and locked sections, are reported as desktop errors with the
 original diagnostic. Locked-section errors also explain how to unlock the section
 in the desktop application.
 
+## Create and append
+
+```console
+onenote pages create --section '{SECTION-ID}' --title 'Meeting notes' --file notes.txt --dry-run
+onenote pages create --section '{SECTION-ID}' --title 'Meeting notes' --file notes.txt
+onenote pages append '{PAGE-ID}' --text 'Follow up on the proposal.'
+cat notes.txt | onenote pages append '{PAGE-ID}' --file -
+```
+
+Supply exactly one of `--text` or `--file`. Content is UTF-8 plain text, limited
+to 1 MiB; titles are limited to 512 bytes. Markdown and HTML are treated as
+literal text. Input line breaks become separate OneNote text elements. A UTF-8
+BOM is removed and CRLF/CR line endings are normalized. `--dry-run` works offline
+and prints the request without checking whether the target exists or is writable.
+
+Create and append are explicit write commands and do not ask for confirmation.
+Append places a new outline below existing content, without sending existing
+outlines, images, or attachments back to OneNote. Every update uses the page's
+last-modified timestamp and `force=false`. A concurrent edit returns `conflict`
+(exit 6) rather than overwriting content.
+
+Success includes the page ID, the resulting Markdown, `operation`, and
+`verified: true`. Verification reads the page back, checks the new text (ignoring
+rendering whitespace differences), and checks that existing page-level object IDs
+remain. Create also checks the title. This verifies desktop state, not cloud sync.
+
+These operations are **not idempotent**: repeating a successful command creates
+another page or appends another block. Creation is a two-step desktop operation;
+a failure after creating the page can leave a blank or partially populated page.
+A timeout, interrupted response, or failed verification returns `write_uncertain`
+(exit 7). Inspect OneNote before retrying. When known, the error includes
+`page_id` for recovery. The CLI never retries a write or automatically deletes a
+partially created page.
+
 ## Implementation and validation
 
 The Rust CLI passes JSON over stdin to a bundled PowerShell script. User text is
-never interpolated into executable code. The script calls only `GetHierarchy`,
-`FindPages`, and `GetPageContent`, releases its COM reference, and never quits
-the user's OneNote application.
+never interpolated into executable code. Read commands use `GetHierarchy`,
+`FindPages`, and `GetPageContent`. The separate write bridge adds `CreateNewPage`
+and `UpdatePageContent`. Both release their COM reference and never quit the
+user's OneNote application.
 
 ```console
 cargo fmt -- --check
@@ -90,7 +125,7 @@ On Windows, tests exercise the production script using a mock COM object. On
 other platforms with PowerShell installed:
 
 ```console
-ONENOTE_TEST_POWERSHELL=/path/to/pwsh cargo test --test desktop_bridge -- --ignored
+ONENOTE_TEST_POWERSHELL=/path/to/pwsh cargo test --test desktop_bridge --test desktop_write -- --ignored
 ```
 
 Mock tests cannot verify a real OneNote installation. Before release, run
@@ -99,7 +134,9 @@ Windows desktop profile, including a nested section and a locked section.
 
 The initial kiosk smoke test passed discovery, nested sections, pagination,
 field projection, Unicode page reads, Markdown/XML output, and pending-index
-search behavior. Positive indexed search and a real password-locked section
+search behavior. Live create/append checks also passed for Unicode, literal
+special characters, line breaks, existing-content preservation, and dry-run.
+Positive indexed search and a real password-locked section
 remain unverified; the latter is covered by XML and COM-error fixtures. Treat
 those two live checks as release prerequisites. Windows Search must remain
 enabled in the kiosk configuration; a provisioning run that disables `WSearch`
