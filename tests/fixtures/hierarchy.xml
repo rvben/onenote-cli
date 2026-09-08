@@ -1,0 +1,14 @@
+<one:Notebooks xmlns:one="http://schemas.microsoft.com/office/onenote/2013/onenote">
+  <one:Notebook ID="{notebook}" name="Work">
+    <one:Section ID="{section}" name="Meetings">
+      <one:Page ID="{page1}" name="Quarterly review" lastModifiedTime="2026-09-08T10:00:00Z"/>
+      <one:Page ID="{page2}" name="O'Brien — 日本語"/>
+    </one:Section>
+    <one:SectionGroup ID="{group}" name="Projects">
+      <one:Section ID="{nested}" name="Planning" locked="true"/>
+    </one:SectionGroup>
+    <one:SectionGroup ID="{bin}" name="Recycle bin" isRecycleBin="true">
+      <one:Section ID="{deleted}" name="Deleted"><one:Page ID="{gone}" name="Gone"/></one:Section>
+    </one:SectionGroup>
+  </one:Notebook>
+</one:Notebooks>

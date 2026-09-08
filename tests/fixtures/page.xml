@@ -1,0 +1,9 @@
+<one:Page xmlns:one="http://schemas.microsoft.com/office/onenote/2013/onenote" ID="{page1}" name="Quarterly review" lastModifiedTime="2026-09-08T10:00:00Z">
+  <one:Title><one:OE><one:T><![CDATA[Quarterly review]]></one:T></one:OE></one:Title>
+  <one:Outline><one:OEChildren>
+    <one:OE><one:T><![CDATA[Hello <b>team</b> &amp; 日本語<br/>Second line]]></one:T></one:OE>
+    <one:OE><one:T><![CDATA[<a href="https://example.com/report">Report</a>]]></one:T></one:OE>
+  </one:OEChildren></one:Outline>
+  <one:Image objectID="image"/>
+  <one:InsertedFile objectID="attachment" preferredName="report.pdf"/>
+</one:Page>
