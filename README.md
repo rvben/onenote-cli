@@ -141,7 +141,10 @@ page listing requests an unlock, and creation is refused before mutation.
 Page read/append errors for locked content are covered by COM-error fixtures.
 Positive indexed search remains a release prerequisite: the kiosk's OneNote
 crawler currently fails with `0x80004005` despite a running Windows Search service
-and a targeted re-crawl. Windows Search must remain
+and a targeted re-crawl. A normal OneNote restart and Office Quick Repair also
+completed without resolving the crawler failure. Post-repair checks passed
+doctor, scratch-page discovery and reading, and confirmed that LockedSmoke
+remains locked. Windows Search must remain
 enabled in the kiosk configuration; a provisioning run that disables `WSearch`
 will break search again.
 
