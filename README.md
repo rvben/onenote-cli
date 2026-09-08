@@ -191,3 +191,20 @@ will break search again.
 
 Microsoft references: [Application interface](https://learn.microsoft.com/en-us/office/client-developer/onenote/application-interface-onenote)
 and [COM enumerations](https://learn.microsoft.com/en-us/office/client-developer/onenote/enumerations-onenote-developer-reference).
+
+## Prepare a release locally
+
+The initial standalone package targets x86-64 Windows. On Windows, build and
+package it with:
+
+```console
+cargo build --release --locked --target x86_64-pc-windows-msvc
+python scripts/package.py --target x86_64-pc-windows-msvc --output dist
+```
+
+Cross-builds with `cargo zigbuild --release --locked --target
+x86_64-pc-windows-gnu` can be packaged with the corresponding GNU target.
+The script verifies the executable architecture and archive contents, includes
+this README, the license, and changelog, and writes a SHA-256 sidecar. Extract the
+archive and verify `onenote.exe --version`, `doctor`, and the live read/write
+smoke checks on Windows before publishing. Packaging does not publish or tag.
