@@ -314,3 +314,79 @@ fn locked_section_is_not_reported_as_an_empty_page_list() {
         0
     );
 }
+
+#[test]
+fn scan_matches_literal_visible_text_and_reports_partial_results() {
+    use serde_json::json;
+    let hierarchy = r#"<one:Section xmlns:one="http://schemas.microsoft.com/office/onenote/2013/onenote" ID="s" name="Section"><one:Page ID="p" name="Title"/><one:Page ID="bad"/></one:Section>"#;
+    let xml = r#"<one:Page xmlns:one="http://schemas.microsoft.com/office/onenote/2013/onenote" ID="p" name="Title"><one:OE><one:T><![CDATA[Hello <b>TEAM</b> &amp; 日本語 <a href="https://hidden.example">visible</a><div>next</div>end &lt;script&gt; $(exit) <script>secret</script>]]></one:T></one:OE></one:Page>"#;
+    let mut batch = json!({"xml":hierarchy,"pages":[{"id":"p","xml":xml}],"skipped_pages":[],"skipped_locked_sections":0,"scan_offset":0,"next_scan_offset":null,"candidate_pages":1,"attempted_pages":1});
+    for query in [
+        "hello team & 日本語",
+        "TITLE",
+        "visible next end",
+        "<script> $(exit)",
+    ] {
+        let result = model::scan(&batch, query, &args(25, 0)).unwrap();
+        assert_eq!(result["total"], 1, "{query}");
+        assert_eq!(result["incomplete"], false);
+        assert_eq!(result["items"][0]["path"], "Section / Title");
+    }
+    for query in [
+        "hidden.example",
+        "secret",
+        "**TEAM**",
+        "team AND 日本語",
+        "missing",
+    ] {
+        assert_eq!(
+            model::scan(&batch, query, &args(25, 0)).unwrap()["total"],
+            0,
+            "{query}"
+        );
+    }
+    batch["pages"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":"bad","xml":"invalid"}));
+    batch["skipped_locked_sections"] = json!(1);
+    batch["next_scan_offset"] = json!(2);
+    let result = model::scan(
+        &batch,
+        "hello",
+        &PageArgs {
+            fields: vec!["id".into()],
+            ..args(1, 0)
+        },
+    )
+    .unwrap();
+    assert_eq!(result["scanned_pages"], 1);
+    assert_eq!(result["skipped_pages"][0]["reason"], "invalid_page_xml");
+    assert_eq!(result["incomplete"], true);
+    assert_eq!(result["items"][0], json!({"id":"p"}));
+    assert!(result["next_offset"].is_null());
+    assert_eq!(result["next_scan_offset"], 2);
+    assert!(output::render(&result, false).contains("Results are incomplete"));
+    assert!(output::render(&result, false).contains("--scan-offset 2 and --offset 0"));
+    assert!(
+        model::scan(&batch, "hello", &args(1, 1)).unwrap()["items"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn scan_bounds_require_explicit_scan_mode() {
+    for extra in [
+        vec!["--scan-limit", "10"],
+        vec!["--scan-offset", "1"],
+        vec!["--scan", "--scan-limit", "0"],
+        vec!["--scan", "--scan-limit", "501"],
+    ] {
+        let mut args = vec!["onenote", "search", "test"];
+        args.extend(extra);
+        assert!(Cli::try_parse_from(args).is_err());
+    }
+    assert!(Cli::try_parse_from(["onenote", "search", "test", "--scan"]).is_ok());
+}

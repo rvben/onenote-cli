@@ -97,6 +97,20 @@ pub fn render(value: &Value, color: bool) -> String {
         if value["indexing_pending"] == true {
             text.push_str(&format!("\n  {} unindexed pages omitted. Search results may be incomplete until Windows Search finishes indexing.\n", value["unindexed_count"]));
         }
+        if value["search_mode"] == "scan" {
+            text.push_str(&format!(
+                "\n  Text scan · {} pages read; {} locked sections and {} pages skipped.\n",
+                value["scanned_pages"],
+                value["skipped_locked_sections"],
+                value["skipped_pages"].as_array().map_or(0, Vec::len)
+            ));
+            if value["incomplete"] == true {
+                text.push_str("  Results are incomplete for this scope.\n");
+            }
+            if !value["next_scan_offset"].is_null() {
+                text.push_str(&format!("  After paging through these matches, continue with --scan-offset {} and --offset 0.\n", value["next_scan_offset"]));
+            }
+        }
         return text;
     }
     if let Some(markdown) = value["markdown"].as_str() {

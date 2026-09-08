@@ -30,7 +30,7 @@ onenote notebooks list
 onenote sections list --notebook '{NOTEBOOK-ID}'
 onenote pages list --section '{SECTION-ID}'
 onenote pages read '{PAGE-ID}'
-onenote search 'quarterly review'
+onenote search 'quarterly review' --scan
 ```
 
 Copy IDs from the preceding command. These are desktop OneNote IDs, not Graph
@@ -63,6 +63,42 @@ UI. Unindexed pages are excluded from matches: results include `indexing_pending
 and `unindexed_count` so an empty result cannot hide pending indexing. New or
 changed pages may take time to become searchable. Listing and reading pages do
 not depend on the search index.
+
+### Search without Windows indexing
+
+```console
+onenote search 'quarterly review' --scan --scope '{SECTION-ID}'
+onenote search 'quarterly review' --scan --scope '{NOTEBOOK-ID}' --scan-limit 100
+onenote search 'quarterly review' --scan --scope '{NOTEBOOK-ID}' --scan-offset 100
+```
+
+`--scan` reads titles and page text directly, with case-insensitive literal
+substring matching and whitespace normalization. It does not interpret Boolean
+operators, wildcards, or OneNote search syntax. HTML formatting is removed and
+entities decoded; link destinations, ink, OCR, and attachment content are not
+searched. It needs no Windows Search service. Use a section scope for fast,
+focused searches; without a scope it scans all open notebooks.
+
+Each request attempts at most 100 pages by default (`--scan-limit` accepts 1–500).
+A scan stops starting page reads after 20 seconds or when its XML response budget
+reaches 4,194,304 UTF-16 code units (before JSON escaping). An individual blocked COM call can still hit
+the bridge's 45-second timeout, which returns an error rather than partial results.
+Oversized pages and read failures appear in `skipped_pages`; locked sections are
+never read and are counted in `skipped_locked_sections`.
+
+`total` counts matches in the current scan batch. `--limit`, `--offset`, and
+`next_offset` paginate those matches. After consuming them, use
+`next_scan_offset` as `--scan-offset` and reset `--offset` to zero to scan the next
+batch. Keep the query, scope, and scan limit unchanged. These cursors are
+positional, not snapshots; edits or timing differences between requests can shift
+results. Narrow the scope if a scan cannot advance its cursor.
+
+`incomplete: true` means there are more candidate pages, skipped pages, or locked
+sections. `next_scan_offset: null` means no more candidates remain, but skipped
+content can still make results incomplete. `scanned_pages`, `attempted_pages`,
+and `candidate_pages` describe coverage; candidate counts exclude locked and
+recycled pages. Partial results exit successfully with this metadata. Terminal
+output also explicitly labels incomplete results.
 
 `--output auto` selects text on a terminal and JSON when piped. Use `-o text` to
 force readable text or `-o json` for automation. `--no-color` and `NO_COLOR`
@@ -139,7 +175,10 @@ special characters, line breaks, existing-content preservation, and dry-run.
 A real password-locked section was verified: discovery reports `locked: true`,
 page listing requests an unlock, and creation is refused before mutation.
 Page read/append errors for locked content are covered by COM-error fixtures.
-Positive indexed search remains a release prerequisite: the kiosk's OneNote
+Live `--scan` checks passed positive title and body matches, Unicode, negative
+queries, bounded continuation, and locked-section omission with incomplete-result
+metadata.
+Indexed search remains an environment limitation: the kiosk's OneNote
 crawler currently fails with `0x80004005` despite a running Windows Search service
 and a targeted re-crawl. A normal OneNote restart and Office Quick Repair also
 completed without resolving the crawler failure. A full kiosk reboot cleared

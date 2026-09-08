@@ -101,8 +101,22 @@ async fn dispatch(cli: Cli) -> Result<(), Error> {
         Some(Command::Pages {
             command: Pages::Append { id, content },
         }) => write_page("append", &id, None, content).await?,
-        Some(Command::Search { query, scope, page }) => {
-            list("search", scope.as_deref(), Some(&query), "Page", page).await?
+        Some(Command::Search {
+            query,
+            scope,
+            scan,
+            scan_limit,
+            scan_offset,
+            page,
+        }) => {
+            if scan {
+                model::validate_fields(&page)?;
+                let result = desktop::scan(json!({"operation":"scan", "scope":scope,
+                    "scan_limit":scan_limit.unwrap_or(100), "scan_offset":scan_offset.unwrap_or(0)})).await?;
+                model::scan(&result, &query, &page)?
+            } else {
+                list("search", scope.as_deref(), Some(&query), "Page", page).await?
+            }
         }
         Some(Command::Doctor { offline }) => {
             if offline {

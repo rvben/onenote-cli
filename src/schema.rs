@@ -8,7 +8,7 @@ pub fn capabilities() -> Value {
     json!({"backend":"desktop", "authentication":"existing Windows OneNote desktop session", "platforms":["windows","wsl"],
         "requires":"Windows OneNote desktop and Windows PowerShell 5.1; WSL requires Windows interop", "writes":true,
         "supported":["notebooks list","sections list","pages list","pages read","search","pages create","pages append"],
-        "limitations":["Only notebooks open in the desktop application", "Reads desktop state; does not guarantee fresh cloud sync", "Page Markdown is a text extraction; layout, ink, and binary content are not exported", "Pagination is positional; edits between requests can shift results", "COM retrieves a hierarchy before local pagination; bridge output is capped at 32 MiB", "Search requires Windows Search; unindexed pages are omitted and reported via indexing_pending and unindexed_count", "Writes accept plain text up to 1 MiB; no Markdown or HTML interpretation", "Create and append are not idempotent; inspect OneNote before retrying any uncertain result", "Write verification checks desktop state, not cloud synchronization"]})
+        "limitations":["Only notebooks open in the desktop application", "Reads desktop state; does not guarantee fresh cloud sync", "Page Markdown is a text extraction; layout, ink, and binary content are not exported", "Pagination is positional; edits between requests can shift results", "COM retrieves a hierarchy before local pagination; bridge output is capped at 32 MiB", "Indexed search requires Windows Search; unindexed pages are omitted and reported via indexing_pending and unindexed_count", "search --scan reads titles and text directly with case-insensitive literal, whitespace-normalized matching; no ink, OCR, or attachment search", "Scans default to 100 pages, maximum 500, with a 20-second soft budget and 45-second bridge timeout; use next_scan_offset separately from result pagination; incomplete reports unread pages or locked sections", "Writes accept plain text up to 1 MiB; no Markdown or HTML interpretation", "Create and append are not idempotent; inspect OneNote before retrying any uncertain result", "Write verification checks desktop state, not cloud synchronization"]})
 }
 pub fn generate(filter: Option<&str>) -> Value {
     let mut commands = Vec::new();
@@ -26,10 +26,13 @@ pub fn generate(filter: Option<&str>) -> Value {
         ),
         (
             "search",
-            "Search page content using OneNote search syntax",
+            "Search using OneNote syntax, or literal text with --scan",
             vec![
                 arg("query", "string", true),
                 arg("--scope", "string", false),
+                arg("--scan", "boolean", false),
+                arg("--scan-limit", "integer", false),
+                arg("--scan-offset", "integer", false),
             ],
         ),
     ] {

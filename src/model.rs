@@ -134,3 +134,135 @@ pub fn read(xml: &str, expected_id: &str, include_xml: bool) -> Result<Value, Er
     }
     Ok(result)
 }
+
+fn normalized(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+// Parse HTML rather than searching Markdown syntax, link targets, or attributes.
+fn html_text(html: &str) -> String {
+    use html5ever::{parse_document, tendril::TendrilSink};
+    use markup5ever_rcdom::{NodeData, RcDom};
+    let dom = parse_document(RcDom::default(), Default::default()).one(html);
+    let mut stack = vec![(dom.document.clone(), false)];
+    let mut text = String::new();
+    while let Some((node, closing)) = stack.pop() {
+        if closing {
+            text.push(' ');
+            continue;
+        }
+        match &node.data {
+            NodeData::Text { contents } => text.push_str(&contents.borrow()),
+            NodeData::Element { name, .. } => {
+                if matches!(name.local.as_ref(), "script" | "style") {
+                    continue;
+                }
+                if matches!(name.local.as_ref(), "br" | "p" | "div" | "li" | "tr" | "td") {
+                    text.push(' ');
+                    stack.push((node.clone(), true));
+                }
+            }
+            _ => {}
+        }
+        stack.extend(
+            node.children
+                .borrow()
+                .iter()
+                .rev()
+                .cloned()
+                .map(|node| (node, false)),
+        );
+    }
+    text
+}
+
+pub fn scan(batch: &Value, query: &str, page: &PageArgs) -> Result<Value, Error> {
+    validate_fields(page)?;
+    let hierarchy = parse(
+        batch["xml"]
+            .as_str()
+            .ok_or_else(|| Error::desktop("Scan response has no hierarchy"))?,
+    )?;
+    let pages = batch["pages"]
+        .as_array()
+        .ok_or_else(|| Error::desktop("Scan response has no pages"))?;
+    let mut skipped = batch["skipped_pages"]
+        .as_array()
+        .ok_or_else(|| Error::desktop("Scan response has no skipped-page metadata"))?
+        .clone();
+    let query = normalized(query);
+    let mut matches = Vec::new();
+    let mut scanned = 0;
+    for entry in pages {
+        let id = entry["id"]
+            .as_str()
+            .ok_or_else(|| Error::desktop("Scan page has no ID"))?;
+        let node = hierarchy
+            .descendants()
+            .find(|n| is(*n, "Page") && n.attribute("ID") == Some(id) && !hidden(*n))
+            .ok_or_else(|| {
+                Error::desktop("Scan returned a page outside the requested hierarchy")
+            })?;
+        if node
+            .ancestors()
+            .any(|n| n.attribute("locked") == Some("true"))
+        {
+            return Err(Error::desktop(
+                "Scan returned content from a locked section",
+            ));
+        }
+        let content = entry["xml"]
+            .as_str()
+            .ok_or_else(|| Error::desktop("Scan page has no XML"))?;
+        let doc = match parse(content) {
+            Ok(doc)
+                if is(doc.root_element(), "Page")
+                    && doc.root_element().attribute("ID") == Some(id) =>
+            {
+                doc
+            }
+            _ => {
+                skipped.push(json!({"id":id,"reason":"invalid_page_xml"}));
+                continue;
+            }
+        };
+        scanned += 1;
+        let root = doc.root_element();
+        let mut text = root.attribute("name").unwrap_or("").to_owned();
+        for part in root.descendants().filter(|n| is(*n, "T")) {
+            text.push('\n');
+            let html: String = part.children().filter_map(|n| n.text()).collect();
+            text.push_str(&html_text(&html));
+        }
+        if normalized(&text).contains(&query) {
+            let mut item = record(node)?;
+            if !page.fields.is_empty() {
+                item.as_object_mut()
+                    .unwrap()
+                    .retain(|key, _| page.fields.contains(key));
+            }
+            matches.push(item);
+        }
+    }
+    let total = matches.len();
+    let start = page.offset as usize;
+    let items: Vec<_> = matches
+        .into_iter()
+        .skip(start)
+        .take(page.limit as usize)
+        .collect();
+    let next = start + items.len();
+    let incomplete = !batch["next_scan_offset"].is_null()
+        || !skipped.is_empty()
+        || batch["skipped_locked_sections"].as_u64().unwrap_or(0) > 0;
+    Ok(
+        json!({"items":items,"total":total,"next_offset":if next < total {Some(next)} else {None},
+        "truncated":next < total,"search_mode":"scan","incomplete":incomplete,
+        "scan_offset":batch["scan_offset"],"next_scan_offset":batch["next_scan_offset"],
+        "candidate_pages":batch["candidate_pages"],"attempted_pages":batch["attempted_pages"],
+        "scanned_pages":scanned,"skipped_locked_sections":batch["skipped_locked_sections"],"skipped_pages":skipped}),
+    )
+}

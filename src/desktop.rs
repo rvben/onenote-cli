@@ -43,6 +43,16 @@ pub async fn run(request: Value) -> Result<String, Error> {
         .ok_or_else(|| Error::desktop("OneNote bridge returned no XML"))
 }
 
+pub async fn scan(request: Value) -> Result<Value, Error> {
+    run_bridge(
+        Command::new(powershell()?),
+        request,
+        SCRIPT,
+        Duration::from_secs(45),
+    )
+    .await
+}
+
 pub async fn write(request: Value) -> Result<Value, Error> {
     let command = Command::new(powershell()?);
     run_bridge(command, request, WRITE_SCRIPT, Duration::from_secs(45)).await

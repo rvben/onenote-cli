@@ -39,13 +39,22 @@ pub enum Command {
         #[command(subcommand)]
         command: Pages,
     },
-    /// Search page content using OneNote's search engine
+    /// Search pages with OneNote's index or a literal text scan
     Search {
         #[arg(value_parser = query)]
         query: String,
         /// Limit search to a notebook, section group, or section ID
         #[arg(long, value_parser = id)]
         scope: Option<String>,
+        /// Read page titles and text directly; case-insensitive literal matching
+        #[arg(long)]
+        scan: bool,
+        /// Maximum pages to attempt per scan (default 100, maximum 500)
+        #[arg(long, requires = "scan", value_parser = clap::value_parser!(u16).range(1..=500))]
+        scan_limit: Option<u16>,
+        /// Continue from next_scan_offset; independent of result --offset
+        #[arg(long, requires = "scan", value_parser = clap::value_parser!(u32).range(0..=1_000_000))]
+        scan_offset: Option<u32>,
         #[command(flatten)]
         page: PageArgs,
     },

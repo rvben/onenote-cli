@@ -7,7 +7,7 @@ $app = $null
 $failed = $false
 try {
     $request = [Console]::In.ReadToEnd() | ConvertFrom-Json
-    if ($request.operation -notin @('probe', 'notebooks', 'sections', 'pages', 'search', 'read')) {
+    if ($request.operation -notin @('probe', 'notebooks', 'sections', 'pages', 'search', 'read', 'scan')) {
         throw [ArgumentException]::new('Unknown OneNote operation.')
     }
     $app = New-Object -ComObject OneNote.Application
@@ -26,9 +26,60 @@ try {
             # those pages are NOT necessarily matches and must be filtered there.
             $app.FindPages([string]$request.scope, [string]$request.query, [ref]$xml, $true, $false, 2)
         }
+        'scan' {
+            if ($request.scan_limit -lt 1 -or $request.scan_limit -gt 500 -or $request.scan_offset -lt 0 -or $request.scan_offset -gt 1000000) {
+                throw [ArgumentException]::new('Invalid scan bounds.')
+            }
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            $app.GetHierarchy([string]$request.scope, 4, [ref]$xml, 2)
+            # Leave headroom for JSON escaping within the 32 MiB bridge cap.
+            $budget = 4 * 1024 * 1024
+            if ($xml.Length -gt $budget) { throw 'Scan hierarchy is too large; narrow --scope.' }
+            $doc = New-Object Xml.XmlDocument
+            $doc.XmlResolver = $null
+            $settings = New-Object Xml.XmlReaderSettings
+            $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
+            $reader = [Xml.XmlReader]::Create((New-Object IO.StringReader($xml)), $settings)
+            try { $doc.Load($reader) } finally { $reader.Dispose() }
+            $ns = New-Object Xml.XmlNamespaceManager($doc.NameTable)
+            $ns.AddNamespace('one', 'http://schemas.microsoft.com/office/onenote/2013/onenote')
+            if ($doc.DocumentElement.NamespaceURI -ne $ns.LookupNamespace('one')) { throw 'Unexpected OneNote XML namespace.' }
+            $visible = "not(ancestor-or-self::*[@isRecycleBin='true' or @isInRecycleBin='true'])"
+            $locked = @($doc.SelectNodes("//one:Section[@locked='true' and $visible]", $ns)).Count
+            $candidates = @($doc.SelectNodes("//one:Page[$visible and not(ancestor-or-self::*[@locked='true'])]", $ns))
+            $pages = New-Object 'Collections.Generic.List[object]'
+            $errors = New-Object 'Collections.Generic.List[object]'
+            $position = [int]$request.scan_offset
+            $attempted = 0
+            $used = $xml.Length
+            while ($position -lt $candidates.Count -and $attempted -lt $request.scan_limit -and $clock.Elapsed.TotalSeconds -lt 20) {
+                $id = $candidates[$position].GetAttribute('ID')
+                if ([string]::IsNullOrEmpty($id)) { throw 'OneNote returned a page without an ID.' }
+                [string]$content = ''
+                try {
+                    $app.GetPageContent($id, [ref]$content, 0, 2)
+                    if ($content.Length -gt $budget - $xml.Length) {
+                        $errors.Add(@{id=$id;reason='page_too_large'})
+                    } elseif ($used + $content.Length -gt $budget) {
+                        break
+                    } else {
+                        $pages.Add(@{id=$id;xml=$content})
+                        $used += $content.Length
+                    }
+                } catch {
+                    $errors.Add(@{id=$id;reason='unreadable'})
+                }
+                $position++
+                $attempted++
+            }
+            $next = if ($position -lt $candidates.Count) { $position } else { $null }
+            $scanResult = @{xml=$xml;pages=$pages.ToArray();skipped_pages=$errors.ToArray();skipped_locked_sections=$locked;
+                scanned_pages=$pages.Count;attempted_pages=$attempted;candidate_pages=$candidates.Count;
+                scan_offset=[int]$request.scan_offset;next_scan_offset=$next}
+        }
         'read' { $app.GetPageContent([string]$request.id, [ref]$xml, 0, 2) }
     }
-    $result = @{xml=$xml}
+    $result = if ($request.operation -eq 'scan') { $scanResult } else { @{xml=$xml} }
 } catch {
     $failed = $true
     $kind = 'desktop_error'
