@@ -136,9 +136,12 @@ The initial kiosk smoke test passed discovery, nested sections, pagination,
 field projection, Unicode page reads, Markdown/XML output, and pending-index
 search behavior. Live create/append checks also passed for Unicode, literal
 special characters, line breaks, existing-content preservation, and dry-run.
-Positive indexed search and a real password-locked section
-remain unverified; the latter is covered by XML and COM-error fixtures. Treat
-those two live checks as release prerequisites. Windows Search must remain
+A real password-locked section was verified: discovery reports `locked: true`,
+page listing requests an unlock, and creation is refused before mutation.
+Page read/append errors for locked content are covered by COM-error fixtures.
+Positive indexed search remains a release prerequisite: the kiosk's OneNote
+crawler currently fails with `0x80004005` despite a running Windows Search service
+and a targeted re-crawl. Windows Search must remain
 enabled in the kiosk configuration; a provisioning run that disables `WSearch`
 will break search again.
 

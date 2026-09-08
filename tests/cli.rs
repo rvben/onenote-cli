@@ -292,3 +292,25 @@ fn write_previews_validate_content_without_a_desktop_connection() {
         assert_eq!(command["effects"], "non_idempotent");
     }
 }
+
+#[test]
+fn locked_section_is_not_reported_as_an_empty_page_list() {
+    let xml = r#"<one:Section xmlns:one="http://schemas.microsoft.com/office/onenote/2013/onenote" ID="locked" name="Protected" encrypted="true" locked="true"/>"#;
+    for result in [
+        model::collection(xml, "Page", &args(25, 0)),
+        model::search(xml, &args(25, 0)),
+    ] {
+        let error = result.unwrap_err();
+        assert_eq!(error.kind, "desktop_error");
+        assert!(error.message.contains("Unlock it in OneNote desktop"));
+    }
+    assert_eq!(
+        model::collection(xml, "Section", &args(25, 0)).unwrap()["items"][0]["locked"],
+        true
+    );
+    let unlocked = xml.replace(" locked=\"true\"", "");
+    assert_eq!(
+        model::collection(&unlocked, "Page", &args(25, 0)).unwrap()["total"],
+        0
+    );
+}

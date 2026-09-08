@@ -68,6 +68,11 @@ pub fn search(xml: &str, page: &PageArgs) -> Result<Value, Error> {
 fn collect(xml: &str, kind: &str, page: &PageArgs, search: bool) -> Result<Value, Error> {
     validate_fields(page)?;
     let doc = parse(xml)?;
+    if kind == "Page" && doc.root_element().attribute("locked") == Some("true") {
+        return Err(Error::desktop(
+            "This section is password-protected. Unlock it in OneNote desktop and retry.",
+        ));
+    }
     let mut nodes: Vec<_> = doc
         .descendants()
         .filter(|n| is(*n, kind) && !hidden(*n))
