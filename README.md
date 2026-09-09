@@ -22,8 +22,7 @@ password protection, and organizational desktop policies still apply.
 ## Install
 
 Package names are `onenote-cli` on crates.io and `onenote-cli-rs` on PyPI; both
-install the `onenote` command. **The first registry release is prepared locally
-but is not published yet.** After publication:
+install the `onenote` command:
 
 ```console
 uv tool install onenote-cli-rs
@@ -251,7 +250,7 @@ and creates `SHA256SUMS`. A tag builds packages but does not publish. Publicatio
 requires an explicit workflow dispatch on that version tag with `publish=true`
 and repository secrets `CARGO_REGISTRY_TOKEN` and `PYPI_API_TOKEN`.
 
-Before first publication, create the repository, configure those secrets, and
-confirm registry ownership. The local repository currently has no remote. If a
+Maintainers must configure those secrets and confirm registry ownership before
+publishing. If a
 registry publication partially succeeds, preserve that version and tag and use a
 patch release for further changes; do not overwrite already published artifacts.

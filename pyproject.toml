@@ -18,6 +18,11 @@ classifiers = [
     "Topic :: Office/Business",
 ]
 
+[project.urls]
+Homepage = "https://github.com/rvben/onenote-cli"
+Repository = "https://github.com/rvben/onenote-cli"
+Issues = "https://github.com/rvben/onenote-cli/issues"
+
 [tool.maturin]
 bindings = "bin"
 strip = true
