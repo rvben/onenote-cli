@@ -19,6 +19,36 @@ OneNote for macOS and the browser do not expose this COM interface. Build and
 offline commands work on other platforms. Existing notebook permissions,
 password protection, and organizational desktop policies still apply.
 
+## Install
+
+Package names are `onenote-cli` on crates.io and `onenote-cli-rs` on PyPI; both
+install the `onenote` command. **The first registry release is prepared locally
+but is not published yet.** After publication:
+
+```console
+uv tool install onenote-cli-rs
+# Or, with Rust installed:
+cargo install onenote-cli --locked
+```
+
+The initial wheels support x86-64 Windows and x86-64 Linux (glibc 2.17 or later).
+Linux desktop access requires WSL with Windows interop; ordinary Linux can run
+offline commands only. The wheel contains the native executable, so installing
+it needs no Rust compiler. Until publication, install a downloaded wheel:
+
+```console
+uv tool install --no-build --no-index ./onenote_cli_rs-0.1.0-py3-none-win_amd64.whl
+```
+
+Run `uv tool update-shell` if `onenote` is not on PATH, then open a new terminal.
+For WSL2, install uv **inside the Linux distribution** and use its Linux wheel.
+Check that `powershell.exe` is on PATH and that Windows OneNote is open under the
+same Windows user. Run `onenote doctor` and `onenote search 'test' --scan` from
+that WSL terminal. Linux wheel installation has been tested in a container;
+live WSL2 access remains unverified because the kiosk reports virtualization
+unavailable and WSL installation failed. Native Windows uv installation is
+validated separately; this is not evidence of working WSL2 interop.
+
 ## Build and start
 
 Requires Rust 1.90 or later. From this directory:
@@ -208,3 +238,20 @@ The script verifies the executable architecture and archive contents, includes
 this README, the license, and changelog, and writes a SHA-256 sidecar. Extract the
 archive and verify `onenote.exe --version`, `doctor`, and the live read/write
 smoke checks on Windows before publishing. Packaging does not publish or tag.
+
+
+Registry packages are built with Maturin's binary bindings. Build the Windows
+wheel on Windows or the Linux wheel on Linux; `maturin build --release --locked
+--out dist` uses the current platform. For a portable Linux wheel use the
+manylinux build in `.github/workflows/release.yml`.
+
+The release workflow tests wheel installation with `uv tool install --no-build
+--no-index`, validates the Windows/Linux wheel matrix and both source packages,
+and creates `SHA256SUMS`. A tag builds packages but does not publish. Publication
+requires an explicit workflow dispatch on that version tag with `publish=true`
+and repository secrets `CARGO_REGISTRY_TOKEN` and `PYPI_API_TOKEN`.
+
+Before first publication, create the repository, configure those secrets, and
+confirm registry ownership. The local repository currently has no remote. If a
+registry publication partially succeeds, preserve that version and tag and use a
+patch release for further changes; do not overwrite already published artifacts.

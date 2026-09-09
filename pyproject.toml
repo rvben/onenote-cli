@@ -1,0 +1,23 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "onenote-cli-rs"
+requires-python = ">=3.8"
+description = "Read and capture Microsoft OneNote notes through its Windows desktop application"
+readme = "README.md"
+license = "MIT"
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Rust",
+    "Topic :: Office/Business",
+]
+
+[tool.maturin]
+bindings = "bin"
+strip = true

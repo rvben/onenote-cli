@@ -16,8 +16,9 @@ Initial Windows desktop release of `onenote-cli`.
 
 Requires Windows OneNote desktop and Windows PowerShell 5.1 in the existing
 OneNote user's session. No Graph app registration or separate OAuth consent.
-The initial executable archive targets x86-64 Windows; it can also be invoked
-from WSL through Windows interop. There is no TUI in this release.
+The executable archive targets x86-64 Windows. Binary wheels for Windows x64
+and Linux x64 allow uv installation without Rust. The Linux desktop backend
+is intended for WSL interop; live WSL2 validation is still outstanding. There is no TUI in this release.
 
 Known limitations: indexed search remains broken on the test kiosk despite
 Office repair and a reboot; use `--scan`. Scans search extracted text, not ink,
