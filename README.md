@@ -11,15 +11,22 @@ piped, bounded collections, shell completions, and an offline CLI Spec contract.
 ## Requirements
 
 - Windows OneNote desktop with your notebooks already open and accessible.
-- Windows PowerShell 5.1 (`powershell.exe`) on PATH.
-- Run under the Windows user who uses OneNote. WSL is supported through Windows
+- Windows PowerShell 5.1 (`powershell.exe`) on the Windows machine.
+- Local access: run as the Windows user who uses OneNote. WSL can use Windows
   interop; OneNote still runs on the Windows side.
+- Remote access: an OpenSSH client, key or agent authentication to Windows, and
+  a signed-in Windows user with permission to register an interactive scheduled
+  task. OneNote must be configured in that user’s desktop session.
 
-OneNote for macOS and the browser do not expose this COM interface. Build and
-offline commands work on other platforms. Existing notebook permissions,
+OneNote for macOS and the browser do not expose this COM interface. The SSH backend lets macOS and
+Linux clients use OneNote on a Windows machine. Existing notebook permissions,
 password protection, and organizational desktop policies still apply.
 
 ## Install
+
+The setup, profile, and SSH commands below are in the current source and are
+not yet released. Published version 0.1.1 supports local desktop access only.
+To use the new commands now, [install this checkout](#build-and-start).
 
 The package is named `onenote-cli` on both crates.io and PyPI. Both install the
 `onenote` command:
@@ -31,8 +38,9 @@ cargo install onenote-cli --locked
 ```
 
 The initial wheels support x86-64 Windows and x86-64 Linux (glibc 2.17 or later).
-Linux desktop access requires WSL with Windows interop; ordinary Linux can run
-offline commands only. The wheel contains the native executable, so installing
+Local Linux desktop access requires WSL with Windows interop; ordinary Linux
+can connect to a Windows machine through an SSH profile. macOS currently
+requires installation with Cargo. The wheel contains the native executable, so installing
 it needs no Rust compiler. To install a downloaded wheel:
 
 ```console
@@ -57,12 +65,87 @@ live WSL2 access remains unverified because the kiosk reports virtualization
 unavailable and WSL installation failed. Native Windows uv installation is
 validated separately; this is not evidence of working WSL2 interop.
 
+## Setup and profiles
+
+On the Windows machine, or in WSL with Windows interop:
+
+```console
+onenote init
+onenote notebooks list
+```
+
+To use a Windows desktop remotely, first establish key-based SSH access and
+verify its host key using your normal SSH client. Existing SSH aliases, agent
+keys, identity files, ports, and proxy configuration are supported. The CLI does
+not prompt for SSH passwords or accept unknown host keys automatically.
+
+```console
+ssh kiosk
+onenote init --profile kiosk --backend ssh --host kiosk
+onenote --profile kiosk doctor
+onenote notebooks list
+```
+
+Here `kiosk` is an alias in your SSH configuration. Without an alias, use
+`--host user@host`, optionally `--identity-file /path/to/key` and `--port 2222`.
+Only the identity file's absolute path is saved, never its contents.
+
+`init` verifies OneNote access before saving and selects the new profile.
+Use `--no-check` to prepare settings offline, `--force` to replace an existing
+profile, and `--read-only` to block page creation and appends. Read-only profiles
+still allow `--dry-run` previews, which include the selected connection.
+
+```console
+onenote init --profile local
+onenote profile list
+onenote profile use kiosk
+onenote config show
+onenote config path
+onenote profile remove local
+```
+
+Selection order is `--profile NAME`, then `ONENOTE_PROFILE`, then the saved
+active profile. `profile list` marks the saved default and any override;
+`config show` explains which selection is in effect. Profile removal deletes
+only local settings. Removing the active profile requires selecting another;
+it never silently switches machines. Existing installations without a config
+file continue to use the local desktop.
+
+Configuration lives in `$XDG_CONFIG_HOME/onenote/config.toml`, otherwise
+`~/.config/onenote/config.toml` on Unix or `%APPDATA%\onenote\config.toml` on
+Windows. `ONENOTE_CONFIG` overrides the entire file path, useful for automation
+and isolated environments. Updates are atomic and locked against concurrent
+writers; Unix config files are private to their owner.
+
+### How remote access works
+
+The SSH backend sends the bundled PowerShell bridge and JSON request over the
+encrypted connection. A temporary, limited-privilege Windows task runs it in
+the **SSH user's signed-in desktop session**. It does not use Graph or require
+an Entra application. The Windows SSH account must be the account using OneNote;
+log into that desktop before running `init` or `doctor`.
+
+Each request has a private temporary directory and a unique task name. Tasks
+and request files are removed when the SSH command finishes. The bridge has a
+45-second deadline; SSH commands allow up to 90 seconds including task startup.
+If the SSH connection is forcibly terminated, the task retains its own deadline,
+but files or task registration can remain under
+`%LOCALAPPDATA%\OneNoteCli\requests`. These can be removed after the task stops.
+Writes are never retried automatically. Interrupted writes return
+`write_uncertain`; inspect the target page before trying again.
+
+`doctor --offline` checks settings and the local transport executable without
+opening a connection. It does not claim OneNote is available; use `doctor` for
+a live check. SSH setup does not install OneNote, configure an SSH server, or
+change your desktop session.
+
 ## Build and start
 
 Requires Rust 1.90 or later. From this directory:
 
 ```console
 cargo install --path . --locked
+onenote init
 onenote doctor
 onenote notebooks list
 onenote sections list --notebook '{NOTEBOOK-ID}'
@@ -89,7 +172,8 @@ Collections return `items`, `total`, `next_offset`, and `truncated`. Reuse the s
 command and filters with `--offset` set to `next_offset`; stop when it is null.
 The default limit is 25, maximum 100. Pagination is positional: changes between
 requests can shift items. OneNote supplies the hierarchy before local pagination;
-the bridge response is capped at 32 MiB and commands time out after 45 seconds.
+the bridge response is capped at 32 MiB. Local commands time out after 45 seconds;
+SSH commands allow 90 seconds including desktop task startup.
 
 Page results include `markdown`, extracted from OneNote text blocks. This is not
 a layout-preserving export: tables, tags, and outline nesting may lose structure;

@@ -10,9 +10,15 @@ pub struct Error {
 pub const CONTRACTS: &[(&str, i32, &str)] = &[
     ("invalid_input", 2, "Invalid arguments"),
     (
+        "config_error",
+        2,
+        "Invalid or unavailable profile configuration",
+    ),
+    ("read_only", 2, "The selected profile blocks writes"),
+    (
         "unsupported",
         2,
-        "Requires Windows or WSL and Windows OneNote desktop",
+        "Local access requires Windows or WSL; use SSH for a remote Windows desktop",
     ),
     ("not_found", 4, "The requested resource is unavailable"),
     (

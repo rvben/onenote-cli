@@ -5,10 +5,10 @@ fn arg(name: &str, kind: &str, required: bool) -> Value {
     json!({"name":name,"type":kind,"required":required})
 }
 pub fn capabilities() -> Value {
-    json!({"backend":"desktop", "authentication":"existing Windows OneNote desktop session", "platforms":["windows","wsl"],
-        "requires":"Windows OneNote desktop and Windows PowerShell 5.1; WSL requires Windows interop", "writes":true,
+    json!({"backend":"desktop", "authentication":"existing Windows OneNote desktop session", "backends":["desktop","ssh"], "platforms":["windows","wsl","macos","linux"],
+        "requires":"Windows OneNote desktop and Windows PowerShell 5.1 on the target. Local WSL requires Windows interop; remote access requires OpenSSH and permission to register an interactive task as the signed-in Windows user", "writes":true,
         "supported":["notebooks list","sections list","pages list","pages read","search","pages create","pages append"],
-        "limitations":["Only notebooks open in the desktop application", "Reads desktop state; does not guarantee fresh cloud sync", "Page Markdown is a text extraction; layout, ink, and binary content are not exported", "Pagination is positional; edits between requests can shift results", "COM retrieves a hierarchy before local pagination; bridge output is capped at 32 MiB", "Indexed search requires Windows Search; unindexed pages are omitted and reported via indexing_pending and unindexed_count", "search --scan reads titles and text directly with case-insensitive literal, whitespace-normalized matching; no ink, OCR, or attachment search", "Scans default to 100 pages, maximum 500, with a 20-second soft budget and 45-second bridge timeout; use next_scan_offset separately from result pagination; incomplete reports unread pages or locked sections", "Writes accept plain text up to 1 MiB; no Markdown or HTML interpretation", "Create and append are not idempotent; inspect OneNote before retrying any uncertain result", "Write verification checks desktop state, not cloud synchronization"]})
+        "limitations":["SSH uses key/agent authentication and existing trusted host keys", "Read-only profiles refuse writes; dry-run remains available", "Only notebooks open in the desktop application", "Reads desktop state; does not guarantee fresh cloud sync", "Page Markdown is a text extraction; layout, ink, and binary content are not exported", "Pagination is positional; edits between requests can shift results", "COM retrieves a hierarchy before local pagination; bridge output is capped at 32 MiB", "Indexed search requires Windows Search; unindexed pages are omitted and reported via indexing_pending and unindexed_count", "search --scan reads titles and text directly with case-insensitive literal, whitespace-normalized matching; no ink, OCR, or attachment search", "Scans default to 100 pages, maximum 500, with a 20-second soft budget and 45-second bridge timeout; use next_scan_offset separately from result pagination; incomplete reports unread pages or locked sections", "Writes accept plain text up to 1 MiB; no Markdown or HTML interpretation", "Create and append are not idempotent; inspect OneNote before retrying any uncertain result", "Write verification checks desktop state, not cloud synchronization"]})
 }
 pub fn generate(filter: Option<&str>) -> Value {
     let mut commands = Vec::new();
@@ -93,12 +93,60 @@ pub fn generate(filter: Option<&str>) -> Value {
         commands.push(json!({"name":name,"description":description,"effects":"read_only","cardinality":"single","stdout_schema":{"type":"object"},"args":args}));
     }
     commands.push(json!({"name":"completions","description":"Generate shell completions","effects":"read_only","output_kind":"opaque","media_type":"text/plain","args":[arg("shell","string",true)]}));
+    for (name, description, effects, args) in [
+        (
+            "init",
+            "Check and save a desktop or SSH profile",
+            "idempotent",
+            vec![
+                arg("--backend", "string", false),
+                arg("--host", "string", false),
+                arg("--identity-file", "string", false),
+                arg("--port", "integer", false),
+                arg("--read-only", "boolean", false),
+                arg("--no-check", "boolean", false),
+                arg("--force", "boolean", false),
+            ],
+        ),
+        (
+            "profile list",
+            "List saved profiles and the active selection",
+            "read_only",
+            vec![],
+        ),
+        (
+            "profile use",
+            "Select the default profile",
+            "idempotent",
+            vec![arg("name", "string", true)],
+        ),
+        (
+            "profile remove",
+            "Remove connection settings",
+            "idempotent",
+            vec![arg("name", "string", true)],
+        ),
+        (
+            "config show",
+            "Show resolved settings without connecting",
+            "read_only",
+            vec![],
+        ),
+        (
+            "config path",
+            "Show the configuration file location",
+            "read_only",
+            vec![],
+        ),
+    ] {
+        commands.push(json!({"name":name,"description":description,"effects":effects,"cardinality":"single","stdout_schema":{"type":"object"},"args":args}));
+    }
     if let Some(filter) = filter {
         commands.retain(|c| c["name"] == filter);
     }
     json!({"$schema":"https://clispec.dev/schema/v0.3.json","clispec":"0.3","name":"onenote","version":env!("CARGO_PKG_VERSION"),
         "description":"Read and capture OneNote notes through the Windows desktop application","output":{"tty":"text","piped":"json"},
-        "global_args":[{"name":"--output","short":"-o","type":"string","enum":["auto","text","json"],"default":"auto"},{"name":"--no-color","type":"boolean"}],
+        "global_args":[{"name":"--profile","type":"string","description":"Profile override; also ONENOTE_PROFILE"},{"name":"--output","short":"-o","type":"string","enum":["auto","text","json"],"default":"auto"},{"name":"--no-color","type":"boolean"}],
         "commands":commands,"errors":CONTRACTS.iter().map(|(kind,code,description)|json!({"kind":kind,"exit_code":code,"retryable":false,"description":description})).collect::<Vec<_>>(),
         "extensions":capabilities()})
 }

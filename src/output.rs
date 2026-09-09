@@ -50,13 +50,104 @@ pub fn render(value: &Value, color: bool) -> String {
             clean(s)
         }
     };
+    match value["view"].as_str() {
+        Some("config_path") => return format!("{}\n", clean(value["path"].as_str().unwrap_or(""))),
+        Some("profiles") => {
+            let mut text = format!("{}\n", title("OneNote · profiles"));
+            let profiles = value["profiles"].as_array().cloned().unwrap_or_default();
+            if profiles.is_empty() {
+                text.push_str("\n  No saved profiles. Start with onenote init.\n");
+            }
+            for p in profiles {
+                text.push_str(&format!(
+                    "\n  {} {}{}\n    {} · {}\n",
+                    if p["active"] == true { "●" } else { "○" },
+                    title(p["name"].as_str().unwrap_or("")),
+                    if p["selected"] == true && p["active"] != true {
+                        " (override)"
+                    } else {
+                        ""
+                    },
+                    clean(p["target"].as_str().unwrap_or("")),
+                    if p["read_only"] == true {
+                        "read-only"
+                    } else {
+                        "read and write"
+                    }
+                ));
+            }
+            text.push_str("\n  ● saved default · Select with onenote profile use NAME\n");
+            return text;
+        }
+        Some("init" | "config") => {
+            let name = value["profile"].as_str().unwrap_or("local (implicit)");
+            let connection = &value["connection"];
+            let mut text = format!(
+                "{}\n\n  Connection  {}\n  Access      {}\n  Config      {}\n",
+                title(&format!("OneNote · {name}")),
+                clean(value["target"].as_str().unwrap_or("")),
+                if connection["read_only"] == true {
+                    "read-only"
+                } else {
+                    "read and write"
+                },
+                clean(value["path"].as_str().unwrap_or(""))
+            );
+            if let Some(key) = connection["identity_file"].as_str() {
+                text.push_str(&format!("  SSH key     {}\n", clean(key)));
+            }
+            if let Some(port) = connection["port"].as_u64() {
+                text.push_str(&format!("  SSH port    {port}\n"));
+            }
+            if value["view"] == "init" {
+                text.push_str(&format!(
+                    "\n  {}\n\n  Next: onenote {}\n",
+                    clean(value["message"].as_str().unwrap_or("")),
+                    if value["verified"] == true {
+                        "notebooks list"
+                    } else {
+                        "doctor"
+                    }
+                ));
+            } else {
+                text.push_str(&format!(
+                    "  Selection   {}\n",
+                    match value["source"].as_str() {
+                        Some("active_profile") => "saved default",
+                        Some("override") => "--profile or ONENOTE_PROFILE",
+                        _ => "local desktop fallback",
+                    }
+                ));
+            }
+            return text;
+        }
+        Some("profile_change") => {
+            let mut text = format!("{}\n", clean(value["message"].as_str().unwrap_or("")));
+            if let Some(name) = value["override"].as_str() {
+                text.push_str(&format!("Profile override '{name}' still takes precedence; clear ONENOTE_PROFILE or --profile to use the saved default.\n"));
+            }
+            return text;
+        }
+        _ => (),
+    }
     if value["dry_run"] == true {
         return format!(
-            "{}\nTarget: {}\n{}\n{}\n\nNo desktop connection or write was made.\n",
+            "{}\nProfile: {}\nConnection: {}{}\nTarget: {}\n{}\n{}\n\nNo desktop connection or write was made.\n",
             title(&format!(
                 "Preview · pages {}",
                 value["operation"].as_str().unwrap_or("write")
             )),
+            clean(value["profile"].as_str().unwrap_or("local (implicit)")),
+            clean(
+                value["connection"]["host"]
+                    .as_str()
+                    .unwrap_or("local Windows desktop")
+            ),
+            if value["connection"]["read_only"] == true {
+                " · read-only"
+            } else {
+                ""
+            },
             clean(value["target"].as_str().unwrap_or("")),
             value["title"]
                 .as_str()

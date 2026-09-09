@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Add `init`, `profile list/use/remove`, `config show/path`, and global
+  `--profile` / `ONENOTE_PROFILE` selection, consistent with the CLI suite.
+- Connect to a signed-in Windows OneNote desktop over SSH from macOS, Linux,
+  WSL, or Windows, using private request files and temporary interactive tasks.
+- Verify connections before saving profiles; support read-only profiles,
+  offline setup, atomic settings updates, and explicit replacement.
+- Preserve write uncertainty across remote failures and expose setup commands
+  in help, completions, and the offline command contract.
+
 ## [0.1.2](https://github.com/rvben/onenote-cli/compare/v0.1.1...v0.1.2) - 2026-09-27
 
 ### Fixed

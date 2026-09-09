@@ -1,4 +1,7 @@
-use crate::error::Error;
+use crate::{
+    config::{Backend, Profile},
+    error::Error,
+};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::Value;
 use std::{path::PathBuf, process::Stdio, time::Duration};
@@ -29,33 +32,91 @@ pub fn powershell() -> Result<PathBuf, Error> {
         .ok_or_else(|| Error::desktop("powershell.exe is not on PATH; enable Windows interop in WSL or restore Windows PowerShell to PATH"))
 }
 
-pub async fn run(request: Value) -> Result<String, Error> {
-    let value = run_bridge(
-        Command::new(powershell()?),
-        request,
-        SCRIPT,
-        Duration::from_secs(45),
-    )
-    .await?;
+pub const REMOTE_SCRIPT: &str = include_str!("desktop_remote.ps1");
+
+pub fn executable(profile: &Profile) -> Result<PathBuf, Error> {
+    if profile.backend == Backend::Desktop {
+        return powershell();
+    }
+    let name = if cfg!(windows) { "ssh.exe" } else { "ssh" };
+    std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+        .map(|p| p.join(name))
+        .find(|p| p.is_file())
+        .ok_or_else(|| {
+            Error::desktop("OpenSSH client is not on PATH; install it before using an SSH profile")
+        })
+}
+fn ssh_command(profile: &Profile) -> Result<Command, Error> {
+    profile.validate()?;
+    let mut command = Command::new(executable(profile)?);
+    command.args([
+        "-T",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "ServerAliveInterval=10",
+        "-o",
+        "ServerAliveCountMax=2",
+        "-o",
+        "StrictHostKeyChecking=yes",
+    ]);
+    if let Some(path) = &profile.identity_file {
+        command.arg("-i").arg(path);
+    }
+    if let Some(port) = profile.port {
+        command.arg("-p").arg(port.to_string());
+    }
+    command
+        .arg("--")
+        .arg(profile.host.as_deref().unwrap_or_default())
+        .arg("powershell.exe");
+    Ok(command)
+}
+pub async fn run(profile: &Profile, request: Value) -> Result<String, Error> {
+    let value = scan(profile, request).await?;
     value["xml"]
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| Error::desktop("OneNote bridge returned no XML"))
 }
-
-pub async fn scan(request: Value) -> Result<Value, Error> {
-    run_bridge(
-        Command::new(powershell()?),
-        request,
-        SCRIPT,
-        Duration::from_secs(45),
-    )
-    .await
+pub async fn scan(profile: &Profile, request: Value) -> Result<Value, Error> {
+    execute(profile, request, SCRIPT).await
 }
-
-pub async fn write(request: Value) -> Result<Value, Error> {
-    let command = Command::new(powershell()?);
-    run_bridge(command, request, WRITE_SCRIPT, Duration::from_secs(45)).await
+pub async fn write(profile: &Profile, request: Value) -> Result<Value, Error> {
+    if profile.read_only {
+        return Err(Error::new(
+            "read_only",
+            "This profile is read-only; select a writable profile to create or append pages",
+        ));
+    }
+    execute(profile, request, WRITE_SCRIPT).await
+}
+async fn execute(profile: &Profile, request: Value, script: &str) -> Result<Value, Error> {
+    if profile.backend == Backend::Desktop {
+        run_bridge(
+            Command::new(powershell()?),
+            request,
+            script,
+            Duration::from_secs(45),
+        )
+        .await
+    } else {
+        run_bridge_inner(
+            ssh_command(profile)?,
+            request,
+            script,
+            Duration::from_secs(90),
+            true,
+        )
+        .await.map_err(|mut error| {
+            if error.message.contains("Invalid PowerShell response") {
+                error.message.push_str(" Check SSH key/agent authentication, verify the host key with your SSH client, and confirm Windows PowerShell is available on the destination.");
+            }
+            error
+        })
+    }
 }
 
 async fn bounded(reader: impl AsyncRead + Unpin, max: u64) -> Result<Vec<u8>, Error> {
@@ -70,13 +131,23 @@ async fn bounded(reader: impl AsyncRead + Unpin, max: u64) -> Result<Vec<u8>, Er
 }
 
 async fn run_bridge(
-    mut command: Command,
+    command: Command,
     request: Value,
     script: &str,
     timeout: Duration,
 ) -> Result<Value, Error> {
+    run_bridge_inner(command, request, script, timeout, false).await
+}
+async fn run_bridge_inner(
+    mut command: Command,
+    request: Value,
+    script: &str,
+    timeout: Duration,
+    remote: bool,
+) -> Result<Value, Error> {
+    let executable_script = if remote { REMOTE_SCRIPT } else { script };
     let encoded = STANDARD.encode(
-        script
+        executable_script
             .encode_utf16()
             .flat_map(u16::to_le_bytes)
             .collect::<Vec<_>>(),
@@ -95,7 +166,12 @@ async fn run_bridge(
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
-        .map_err(|e| Error::desktop(format!("Cannot start Windows PowerShell: {e}")))?;
+        .map_err(|e| {
+            Error::desktop(format!(
+                "Cannot start {}: {e}",
+                if remote { "SSH" } else { "Windows PowerShell" }
+            ))
+        })?;
     let mut stdin = child
         .stdin
         .take()
@@ -108,7 +184,12 @@ async fn run_bridge(
         .stderr
         .take()
         .ok_or_else(|| Error::desktop("Missing bridge stderr"))?;
-    let bytes = serde_json::to_vec(&request).map_err(|e| Error::invalid(e.to_string()))?;
+    let payload = if remote {
+        serde_json::json!({"script_base64":STANDARD.encode(format!("\u{feff}{script}")),"request":request,"write":script == WRITE_SCRIPT})
+    } else {
+        request.clone()
+    };
+    let bytes = serde_json::to_vec(&payload).map_err(|e| Error::invalid(e.to_string()))?;
     let uncertain = |e: Error| {
         if script == WRITE_SCRIPT {
             Error::new(
@@ -151,9 +232,10 @@ async fn run_bridge(
     };
     let result = match tokio::time::timeout(timeout, operation).await {
         Ok(result) => result,
-        Err(_) => Err(uncertain(Error::desktop(
-            "OneNote did not respond within 45 seconds; check its Windows desktop for setup, password, or sync prompts",
-        ))),
+        Err(_) => Err(uncertain(Error::desktop(format!(
+            "OneNote did not respond within {} seconds; check its Windows desktop for setup, password, or sync prompts",
+            timeout.as_secs()
+        )))),
     };
     if result.is_err() {
         let _ = child.kill().await;
@@ -204,7 +286,7 @@ mod tests {
     use super::*;
     #[test]
     fn script_fits_windows_command_line_and_protocol_errors_are_preserved() {
-        for script in [SCRIPT, WRITE_SCRIPT] {
+        for script in [SCRIPT, WRITE_SCRIPT, REMOTE_SCRIPT] {
             assert!(script.encode_utf16().count() * 2 * 4 / 3 < 32000);
         }
         assert!(parse_output(true, b"noise", b"").is_err());

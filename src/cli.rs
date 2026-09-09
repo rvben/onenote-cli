@@ -10,8 +10,11 @@ pub enum Format {
 #[derive(Debug, Parser)]
 #[command(name = "onenote", version, about = "Your OneNote notebooks, from the terminal",
     styles = styles(),
-    after_help = "Start with your Windows desktop session:\n  onenote doctor\n  onenote notebooks list\n  onenote sections list --notebook ID\n  onenote pages list --section ID\n  onenote search 'quarterly review'\n  onenote pages read ID\n  onenote pages create --section ID --title Notes --file notes.txt --dry-run\n  onenote pages append ID --text 'Follow up tomorrow'\n\nFor automation:\n  onenote notebooks list -o json\n  onenote schema\n\nRequires Windows OneNote desktop; WSL can use Windows PowerShell interop.\nNo app registration or separate sign-in. Writes use explicit pages create/append commands; preview with --dry-run.")]
+    after_help = "Get started:\n  onenote init\n  onenote init --profile kiosk --backend ssh --host kiosk\n  onenote profile list\n  onenote doctor\n  onenote notebooks list\n  onenote sections list --notebook ID\n  onenote pages list --section ID\n  onenote search 'quarterly review'\n  onenote pages read ID\n  onenote pages create --section ID --title Notes --file notes.txt --dry-run\n  onenote pages append ID --text 'Follow up tomorrow'\n\nFor automation:\n  onenote notebooks list -o json\n  onenote schema\n\nRequires Windows OneNote desktop. Connect locally on Windows/WSL or over SSH from any supported platform.\nNo app registration or separate sign-in. Writes use explicit pages create/append commands; preview with --dry-run.")]
 pub struct Cli {
+    /// Use a saved connection profile (also ONENOTE_PROFILE)
+    #[arg(long, global = true, env = "ONENOTE_PROFILE", value_parser = crate::config::profile_name)]
+    pub profile: Option<String>,
     /// Auto: text in a terminal, JSON when piped
     #[arg(short = 'o', long, global = true, value_enum, default_value = "auto")]
     pub output: Format,
@@ -24,6 +27,18 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Configure and check a local desktop or SSH connection
+    Init(InitArgs),
+    /// List, select, or remove saved connection profiles
+    Profile {
+        #[command(subcommand)]
+        command: ProfileCommand,
+    },
+    /// Inspect connection settings and their storage location
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
     /// List notebooks open in the desktop application
     Notebooks {
         #[command(subcommand)]
@@ -58,9 +73,9 @@ pub enum Command {
         #[command(flatten)]
         page: PageArgs,
     },
-    /// Check Windows PowerShell and the OneNote COM connection
+    /// Check the selected connection and OneNote access
     Doctor {
-        /// Check the local platform without launching OneNote
+        /// Check configuration and local transport availability without connecting
         #[arg(long)]
         offline: bool,
     },
@@ -168,4 +183,51 @@ fn styles() -> clap::builder::Styles {
         .literal(AnsiColor::Magenta.on_default())
         .usage(AnsiColor::Magenta.on_default().bold())
         .placeholder(AnsiColor::Cyan.on_default())
+}
+
+#[derive(Debug, Args)]
+pub struct InitArgs {
+    /// Connect to this desktop or a Windows machine over SSH
+    #[arg(long, value_enum, default_value = "desktop")]
+    pub backend: crate::config::Backend,
+    /// SSH destination or host alias, optionally user@host
+    #[arg(long)]
+    pub host: Option<String>,
+    /// Private-key file on this machine; otherwise use the SSH agent/config
+    #[arg(long)]
+    pub identity_file: Option<std::path::PathBuf>,
+    /// SSH port; otherwise use the SSH configuration
+    #[arg(long, value_parser = clap::value_parser!(u16).range(1..))]
+    pub port: Option<u16>,
+    /// Refuse page writes through this profile
+    #[arg(long)]
+    pub read_only: bool,
+    /// Save without checking the desktop connection
+    #[arg(long)]
+    pub no_check: bool,
+    /// Replace an existing profile with these settings
+    #[arg(long)]
+    pub force: bool,
+}
+#[derive(Debug, Subcommand)]
+pub enum ProfileCommand {
+    /// List saved connections and mark the active profile
+    List,
+    /// Select the profile used by subsequent commands
+    Use {
+        #[arg(value_parser = crate::config::profile_name)]
+        name: String,
+    },
+    /// Remove saved settings; leaves SSH keys and notebooks untouched
+    Remove {
+        #[arg(value_parser = crate::config::profile_name)]
+        name: String,
+    },
+}
+#[derive(Debug, Subcommand)]
+pub enum ConfigCommand {
+    /// Show the selected connection settings, without connecting
+    Show,
+    /// Print the configuration file location
+    Path,
 }
