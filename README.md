@@ -21,11 +21,11 @@ password protection, and organizational desktop policies still apply.
 
 ## Install
 
-Package names are `onenote-cli` on crates.io and `onenote-cli-rs` on PyPI; both
-install the `onenote` command:
+The package is named `onenote-cli` on both crates.io and PyPI. Both install the
+`onenote` command:
 
 ```console
-uv tool install onenote-cli-rs
+uv tool install onenote-cli
 # Or, with Rust installed:
 cargo install onenote-cli --locked
 ```
@@ -33,11 +33,20 @@ cargo install onenote-cli --locked
 The initial wheels support x86-64 Windows and x86-64 Linux (glibc 2.17 or later).
 Linux desktop access requires WSL with Windows interop; ordinary Linux can run
 offline commands only. The wheel contains the native executable, so installing
-it needs no Rust compiler. Until publication, install a downloaded wheel:
+it needs no Rust compiler. To install a downloaded wheel:
 
 ```console
-uv tool install --no-build --no-index ./onenote_cli_rs-0.1.0-py3-none-win_amd64.whl
+uv tool install --no-build --no-index ./onenote_cli-0.1.1-py3-none-win_amd64.whl
 ```
+
+If you installed the earlier `onenote-cli-rs` package, switch names with:
+
+```console
+uv tool uninstall onenote-cli-rs
+uv tool install onenote-cli
+```
+
+The original `onenote-cli-rs` 0.1.0 package remains available and unchanged.
 
 Run `uv tool update-shell` if `onenote` is not on PATH, then open a new terminal.
 For WSL2, install uv **inside the Linux distribution** and use its Linux wheel.

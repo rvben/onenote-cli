@@ -15,16 +15,16 @@ spec.loader.exec_module(release)
 class ReleaseTests(unittest.TestCase):
     def wheel(self, root, platform, version=None):
         v = release.VERSION
-        path = root / f"onenote_cli_rs-{v}-py3-none-{platform}.whl"
+        path = root / f"onenote_cli-{v}-py3-none-{platform}.whl"
         with zipfile.ZipFile(path, "w") as z:
-            z.writestr(f"onenote_cli_rs-{v}.dist-info/METADATA", f"Name: onenote-cli-rs\nVersion: {version or v}\n")
+            z.writestr(f"onenote_cli-{v}.dist-info/METADATA", f"Name: onenote-cli\nVersion: {version or v}\n")
             suffix = ".exe" if platform == "win_amd64" else ""
-            z.writestr(f"onenote_cli_rs-{v}.data/scripts/onenote{suffix}", b"fixture executable")
+            z.writestr(f"onenote_cli-{v}.data/scripts/onenote{suffix}", b"fixture executable")
         return path
 
     def sources(self, root):
         v = release.VERSION
-        for prefix, extension in [(f"onenote_cli_rs-{v}", ".tar.gz"), (f"onenote-cli-{v}", ".crate")]:
+        for prefix, extension in [(f"onenote_cli-{v}", ".tar.gz"), (f"onenote-cli-{v}", ".crate")]:
             with tarfile.open(root / (prefix + extension), "w:gz") as z:
                 content = f'[package]\nversion = "{v}"\n'.encode()
                 info = tarfile.TarInfo(prefix + "/Cargo.toml")

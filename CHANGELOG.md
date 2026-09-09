@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Publish under `onenote-cli` on PyPI, matching the crates.io package name.
+- Update wheel verification, installation instructions, and migration guidance.
+- Preserve the existing `onenote-cli-rs` 0.1.0 package and all 0.1.0 artifacts.
+- The executable is still named `onenote`; desktop behavior is unchanged.
+
 ## 0.1.0
 
 Initial Windows desktop release of `onenote-cli`.

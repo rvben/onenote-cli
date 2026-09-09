@@ -15,11 +15,11 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
-PACKAGE = "onenote-cli-rs"
+PACKAGE = "onenote-cli"
 
 
 def wheels(directory):
-    return sorted(directory.glob(f"onenote_cli_rs-{VERSION}-*.whl"))
+    return sorted(directory.glob(f"onenote_cli-{VERSION}-*.whl"))
 
 
 def inspect_wheel(path):
@@ -73,9 +73,9 @@ def verify(directory, tag):
     candidates = wheels(directory)
     if sorted(inspect_wheel(p) for p in candidates) != ["linux", "windows"]:
         raise ValueError("Release requires exactly one Windows x64 and one Linux x64 wheel")
-    source = directory / f"onenote_cli_rs-{VERSION}.tar.gz"
+    source = directory / f"onenote_cli-{VERSION}.tar.gz"
     crate = directory / f"onenote-cli-{VERSION}.crate"
-    for archive_path, prefix in [(source, f"onenote_cli_rs-{VERSION}"), (crate, f"onenote-cli-{VERSION}")]:
+    for archive_path, prefix in [(source, f"onenote_cli-{VERSION}"), (crate, f"onenote-cli-{VERSION}")]:
         with tarfile.open(archive_path) as archive:
             manifest = archive.extractfile(f"{prefix}/Cargo.toml")
             if manifest is None or tomllib.loads(manifest.read().decode())["package"]["version"] != VERSION:
