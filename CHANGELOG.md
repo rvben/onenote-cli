@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2](https://github.com/rvben/onenote-cli/compare/v0.1.1...v0.1.2) - 2026-09-27
+
+### Fixed
+
+- **deps**: update rustls to 0.23.45 for RUSTSEC-2026-0285 ([437bfa2](https://github.com/rvben/onenote-cli/commit/437bfa227327287b2a8b916668ddb4279613ca8b))
+
 ## 0.1.1
 
 - Publish under `onenote-cli` on PyPI, matching the crates.io package name.
