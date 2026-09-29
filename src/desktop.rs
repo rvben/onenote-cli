@@ -216,7 +216,7 @@ async fn run_bridge_inner(
             bounded(stderr, 64 * 1024),
             async { Ok::<_, Error>(child.wait().await?) },
         )
-        .map_err(&uncertain)?;
+        .map_err(uncertain)?;
         // A valid error envelope is authoritative about whether mutation began.
         if script == WRITE_SCRIPT {
             let decoded: Option<Value> =
@@ -225,7 +225,7 @@ async fn run_bridge_inner(
             if decoded.as_ref().is_some_and(|v| v.get("error").is_some()) {
                 return parse_output(status.success(), &stdout, &stderr);
             }
-            parse_output(status.success(), &stdout, &stderr).map_err(&uncertain)
+            parse_output(status.success(), &stdout, &stderr).map_err(uncertain)
         } else {
             parse_output(status.success(), &stdout, &stderr)
         }

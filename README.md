@@ -5,8 +5,9 @@ application**, using its existing signed-in session. No Graph connection, Entra
 app registration, or separate OAuth consent is required by this backend.
 
 Discover notebooks and sections, list and search pages, read page content, and
-create or append plain-text notes. It has readable terminal output, JSON when
-piped, bounded collections, shell completions, and an offline CLI Spec contract.
+create or append plain-text notes. The interactive workspace opens with `onenote tui`;
+regular commands offer terminal output, JSON when piped, bounded collections,
+shell completions, and an offline CLI Spec contract.
 
 ## Requirements
 
@@ -24,10 +25,6 @@ password protection, and organizational desktop policies still apply.
 
 ## Install
 
-The setup, profile, and SSH commands below are in the current source and are
-not yet released. Published version 0.1.1 supports local desktop access only.
-To use the new commands now, [install this checkout](#build-and-start).
-
 The package is named `onenote-cli` on both crates.io and PyPI. Both install the
 `onenote` command:
 
@@ -44,7 +41,7 @@ requires installation with Cargo. The wheel contains the native executable, so i
 it needs no Rust compiler. To install a downloaded wheel:
 
 ```console
-uv tool install --no-build --no-index ./onenote_cli-0.1.1-py3-none-win_amd64.whl
+uv tool install --no-build --no-index ./onenote_cli-0.1.3-py3-none-win_amd64.whl
 ```
 
 If you installed the earlier `onenote-cli-rs` package, switch names with:
@@ -153,6 +150,34 @@ onenote pages list --section '{SECTION-ID}'
 onenote pages read '{PAGE-ID}'
 onenote search 'quarterly review' --scan
 ```
+
+### Interactive workspace
+
+Run `onenote tui` in a terminal to browse notebooks, sections, and pages with
+the selected local or SSH profile. Enter drills into the selected item; Esc
+goes back. At wider terminal sizes, the page text appears beside the list.
+The workspace starts at your open notebooks and uses the same desktop session
+and read-only setting as the other commands.
+
+| Key | Action |
+|-----|--------|
+| `j` / `k`, arrows | Move through the list |
+| `Enter`, `Esc` | Open an item or go back |
+| `b` | Return to notebooks |
+| `/`, `s` | Indexed search or literal text scan |
+| `f`, `n`, `r` | Filter loaded items, load more, refresh |
+| `PageUp` / `PageDown` | Scroll page text |
+| `c`, `a` | Create a page in the open section or append to a selected page |
+| `?`, `q` | Show keyboard help or quit |
+
+Search results indicate when indexing is pending or a literal scan is
+incomplete. The literal scan covers the first 100 candidate pages; use the
+CLI's `search --scan` options for further batches. Create and append accept
+plain text, keep an unfinished draft for the current session, and show a
+review screen before writing. If OneNote does not confirm a write, the
+workspace blocks further writes for that session so you can inspect the
+desktop state before trying again. Write keys are disabled for read-only
+profiles. The TUI requires a terminal; scripts should use the regular CLI.
 
 Copy IDs from the preceding command. These are desktop OneNote IDs, not Graph
 IDs. Quote them in your shell. Sections inside section groups are included and

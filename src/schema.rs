@@ -7,7 +7,7 @@ fn arg(name: &str, kind: &str, required: bool) -> Value {
 pub fn capabilities() -> Value {
     json!({"backend":"desktop", "authentication":"existing Windows OneNote desktop session", "backends":["desktop","ssh"], "platforms":["windows","wsl","macos","linux"],
         "requires":"Windows OneNote desktop and Windows PowerShell 5.1 on the target. Local WSL requires Windows interop; remote access requires OpenSSH and permission to register an interactive task as the signed-in Windows user", "writes":true,
-        "supported":["notebooks list","sections list","pages list","pages read","search","pages create","pages append"],
+        "supported":["notebooks list","sections list","pages list","pages read","search","pages create","pages append","tui"],
         "limitations":["SSH uses key/agent authentication and existing trusted host keys", "Read-only profiles refuse writes; dry-run remains available", "Only notebooks open in the desktop application", "Reads desktop state; does not guarantee fresh cloud sync", "Page Markdown is a text extraction; layout, ink, and binary content are not exported", "Pagination is positional; edits between requests can shift results", "COM retrieves a hierarchy before local pagination; bridge output is capped at 32 MiB", "Indexed search requires Windows Search; unindexed pages are omitted and reported via indexing_pending and unindexed_count", "search --scan reads titles and text directly with case-insensitive literal, whitespace-normalized matching; no ink, OCR, or attachment search", "Scans default to 100 pages, maximum 500, with a 20-second soft budget and 45-second bridge timeout; use next_scan_offset separately from result pagination; incomplete reports unread pages or locked sections", "Writes accept plain text up to 1 MiB; no Markdown or HTML interpretation", "Create and append are not idempotent; inspect OneNote before retrying any uncertain result", "Write verification checks desktop state, not cloud synchronization"]})
 }
 pub fn generate(filter: Option<&str>) -> Value {
@@ -93,6 +93,7 @@ pub fn generate(filter: Option<&str>) -> Value {
         commands.push(json!({"name":name,"description":description,"effects":"read_only","cardinality":"single","stdout_schema":{"type":"object"},"args":args}));
     }
     commands.push(json!({"name":"completions","description":"Generate shell completions","effects":"read_only","output_kind":"opaque","media_type":"text/plain","args":[arg("shell","string",true)]}));
+    commands.push(json!({"name":"tui","description":"Explore OneNote interactively; create and append actions are guarded by profile permissions and review screens","effects":"non_idempotent","output_kind":"opaque","media_type":"text/x-terminal","args":[]}));
     for (name, description, effects, args) in [
         (
             "init",

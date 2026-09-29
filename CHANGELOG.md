@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add `onenote tui`, a responsive notebook workspace with section and page
+  navigation, page previews, indexed search, literal scans, filters, and paging.
+- Add reviewed plain-text create and append flows with session drafts,
+  read-only controls, and uncertain-write protection.
+
 - Add `init`, `profile list/use/remove`, `config show/path`, and global
   `--profile` / `ONENOTE_PROFILE` selection, consistent with the CLI suite.
 - Connect to a signed-in Windows OneNote desktop over SSH from macOS, Linux,

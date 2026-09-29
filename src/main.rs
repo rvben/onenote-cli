@@ -89,6 +89,10 @@ async fn dispatch(cli: Cli) -> Result<(), Error> {
         Some(Command::Notebooks {
             command: Notebooks::List(page),
         }) => list(selected, "notebooks", None, None, "Notebook", page).await?,
+        Some(Command::Tui) => {
+            let (name, profile) = resolve()?;
+            return onenote_cli::tui::run(profile, name.as_deref(), !cli.no_color).await;
+        }
         Some(Command::Sections {
             command: Sections::List { notebook, page },
         }) => list(selected, "sections", Some(&notebook), None, "Section", page).await?,

@@ -10,7 +10,7 @@ pub enum Format {
 #[derive(Debug, Parser)]
 #[command(name = "onenote", version, about = "Your OneNote notebooks, from the terminal",
     styles = styles(),
-    after_help = "Get started:\n  onenote init\n  onenote init --profile kiosk --backend ssh --host kiosk\n  onenote profile list\n  onenote doctor\n  onenote notebooks list\n  onenote sections list --notebook ID\n  onenote pages list --section ID\n  onenote search 'quarterly review'\n  onenote pages read ID\n  onenote pages create --section ID --title Notes --file notes.txt --dry-run\n  onenote pages append ID --text 'Follow up tomorrow'\n\nFor automation:\n  onenote notebooks list -o json\n  onenote schema\n\nRequires Windows OneNote desktop. Connect locally on Windows/WSL or over SSH from any supported platform.\nNo app registration or separate sign-in. Writes use explicit pages create/append commands; preview with --dry-run.")]
+    after_help = "Get started:\n  onenote init\n  onenote init --profile kiosk --backend ssh --host kiosk\n  onenote tui\n  onenote profile list\n  onenote doctor\n  onenote notebooks list\n  onenote sections list --notebook ID\n  onenote pages list --section ID\n  onenote search 'quarterly review'\n  onenote pages read ID\n  onenote pages create --section ID --title Notes --file notes.txt --dry-run\n  onenote pages append ID --text 'Follow up tomorrow'\n\nFor automation:\n  onenote notebooks list -o json\n  onenote schema\n\nRequires Windows OneNote desktop. Connect locally on Windows/WSL or over SSH from any supported platform.\nNo app registration or separate sign-in. Writes use explicit pages create/append commands; preview with --dry-run.")]
 pub struct Cli {
     /// Use a saved connection profile (also ONENOTE_PROFILE)
     #[arg(long, global = true, env = "ONENOTE_PROFILE", value_parser = crate::config::profile_name)]
@@ -27,6 +27,8 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Explore notebooks, sections, and pages in an interactive terminal
+    Tui,
     /// Configure and check a local desktop or SSH connection
     Init(InitArgs),
     /// List, select, or remove saved connection profiles
