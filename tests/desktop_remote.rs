@@ -84,7 +84,6 @@ function Unregister-ScheduledTask {
             .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-File"])
             .arg(&path)
             .env("ONENOTE_TEST_ROOT", temp.path())
-            .env("SystemRoot", temp.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
