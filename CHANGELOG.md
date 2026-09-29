@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## [Unreleased]
+
+## [0.1.3](https://github.com/rvben/onenote-cli/compare/v0.1.2...v0.1.3) - 2026-09-29
 
 - Add `onenote tui`, a responsive notebook workspace with section and page
   navigation, page previews, indexed search, literal scans, filters, and paging.
