@@ -25,6 +25,16 @@ password protection, and organizational desktop policies still apply.
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install rvben/tap/onenote-cli
+```
+
+Homebrew builds from source and installs the required dependencies.
+
+### Other installation methods
+
 The package is named `onenote-cli` on both crates.io and PyPI. Both install the
 `onenote` command:
 
@@ -36,9 +46,10 @@ cargo install onenote-cli --locked
 
 The initial wheels support x86-64 Windows and x86-64 Linux (glibc 2.17 or later).
 Local Linux desktop access requires WSL with Windows interop; ordinary Linux
-can connect to a Windows machine through an SSH profile. macOS currently
-requires installation with Cargo. The wheel contains the native executable, so installing
-it needs no Rust compiler. To install a downloaded wheel:
+can connect to a Windows machine through an SSH profile. On macOS, use Homebrew
+or Cargo and connect through an SSH profile. The wheel contains the native
+executable, so installing it needs no Rust compiler. To install a downloaded
+wheel:
 
 ```console
 uv tool install --no-build --no-index ./onenote_cli-0.1.3-py3-none-win_amd64.whl
